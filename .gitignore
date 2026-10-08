@@ -1,0 +1,16 @@
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+# Local dumps and runtime artifacts
+*.log
+*.bak
+*.tmp
