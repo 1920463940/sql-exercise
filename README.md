@@ -76,7 +76,7 @@
 
 在 Windows 服务中确认 MySQL 服务已运行。打开 Navicat Premium，创建 MySQL 连接，使用 `localhost`、端口 `3306` 和本地数据库账号连接。随后创建数据库 `school_db`，设置字符集为 `utf8mb4`，排序规则为 `utf8mb4_0900_ai_ci`。
 
-![school_db 的数据库信息](images/01-database-created.png)
+
 
 同样可以使用 SQL：
 
