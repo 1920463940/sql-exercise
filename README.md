@@ -107,7 +107,7 @@ DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 USE school_db;
 ```
 
-建表与数据的**完整执行脚本**见 [`sql/school_db.sql`](sql/school_db.sql)。建议打开 Navicat「新建查询」执行后在表视图中检查字段、索引与外键关系。
+建表与数据的**完整执行脚本**见 [`sql/school_db.sql`](sql/school_db.sql)。
 
 ### 4.2 系、学生与课程基础数据
 
@@ -121,7 +121,7 @@ USE school_db;
 
 ### 4.3 SC 选课数据
 
-在已插入学生与课程的前提下，执行以下语句（重复执行可能违反联合主键约束）：
+
 
 ```sql
 INSERT INTO sc (student_id, course_id, grade) VALUES
@@ -174,7 +174,6 @@ JOIN student AS s ON sc.student_id = s.student_id
 JOIN course AS c ON sc.course_id = c.course_id;
 ```
 
-该查询可以将选课表中保存的学号、课程编号转换为姓名和课程名。此查询语句已收录在 [`sql/queries.sql`](sql/queries.sql) 中，但本次未单独提供其 Navicat 运行截图。
 
 ### 5.3 LEFT JOIN 自连接：课程及直接先修课
 
@@ -210,7 +209,7 @@ JOIN course AS pp ON p.cpno = pp.course_id;
 2. **外键的引用方向**：`sc.student_id` 引用 `student.student_id`，`sc.course_id` 引用 `course.course_id`，由引用方保存被引用方定义的编号。
 3. **自引用外键与自连接**：`course.cpno` 指向 `course.course_id`，查询时使用两个别名表示当前课程与先修课程，并可借助 `LEFT JOIN` 保留没有先修课的课程。
 
-Navicat 的逆向模型展示了 5 条外键关系；课堂实际操作中已完成四表结构、测试数据插入、学生所属系的 `INNER JOIN` 和课程先修课的 `LEFT JOIN` 自连接。本文不将未实际执行的删除、级联更新测试写成验证成功。
+
 
 ## 七、文件目录与复现方式
 
@@ -242,4 +241,4 @@ sql-exercise/
         └── school_db_latest.sql      # 二期四表 Navicat 原始完整导出
 ```
 
-**复现步骤**：在独立测试 MySQL 实例中执行 `sql/school_db.sql`，随后打开 `sql/queries.sql`，选中需要的查询单独执行。导入前请检查脚本的 `DROP TABLE` 操作，不要覆盖重要数据。
+
