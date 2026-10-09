@@ -1,68 +1,90 @@
--- 学生、系、课程数据库实践 / MySQL 8.0.43
--- 注意：此脚本用于演示环境的重建。再次执行会删除并重新创建三张表，原有数据将被覆盖！
--- 如需保留既有数据，请不要执行下面的 DROP TABLE 语句。
-
+-- 基于 Navicat 实际导出整理的可复现教学脚本（MySQL 8.0.43）
+-- 注意：此脚本会先删除 school_db 中同名的 4 张表及其数据，仅用于独立练习库！
 CREATE DATABASE IF NOT EXISTS `school_db`
-    DEFAULT CHARACTER SET utf8mb4
-    COLLATE utf8mb4_0900_ai_ci;
+  DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 USE `school_db`;
-SET NAMES utf8mb4;
 
--- 按外键依赖顺序先删除子表，再删除父表
-DROP TABLE IF EXISTS `student`;
+-- 按外键依赖关系删除子表 -> 父表
+DROP TABLE IF EXISTS `sc`;
 DROP TABLE IF EXISTS `course`;
+DROP TABLE IF EXISTS `student`;
 DROP TABLE IF EXISTS `department`;
 
--- 先创建系表（父表）
-CREATE TABLE `department`  (
-  `dept_id` char(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `dept_name` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `office` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  PRIMARY KEY (`dept_id`) USING BTREE,
-  UNIQUE INDEX `uq_dept_name`(`dept_name` ASC) USING BTREE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+CREATE TABLE `department` (
+    `dept_id` CHAR(4) NOT NULL,
+    `dept_name` VARCHAR(50) NOT NULL,
+    `office` VARCHAR(100),
+    PRIMARY KEY (`dept_id`),
+    UNIQUE KEY `uq_dept_name` (`dept_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 学生表（子表）
-CREATE TABLE `student`  (
-  `student_id` char(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `student_name` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `gender` char(1) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NULL DEFAULT NULL,
-  `age` tinyint UNSIGNED NULL DEFAULT NULL,
-  `dept_id` char(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  PRIMARY KEY (`student_id`) USING BTREE,
-  INDEX `fk_student_dept`(`dept_id` ASC) USING BTREE,
-  CONSTRAINT `fk_student_dept` FOREIGN KEY (`dept_id`) REFERENCES `department` (`dept_id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+CREATE TABLE `student` (
+    `student_id` CHAR(10) NOT NULL,
+    `student_name` VARCHAR(30) NOT NULL,
+    `gender` CHAR(1),
+    `age` TINYINT UNSIGNED,
+    `dept_id` CHAR(4) NOT NULL,
+    PRIMARY KEY (`student_id`),
+    CONSTRAINT `fk_student_dept` FOREIGN KEY (`dept_id`)
+       REFERENCES `department` (`dept_id`)
+       ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 课程表（子表）
-CREATE TABLE `course`  (
-  `course_id` char(6) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `course_name` varchar(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  `credits` decimal(3, 1) NOT NULL,
-  `dept_id` char(4) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL,
-  PRIMARY KEY (`course_id`) USING BTREE,
-  INDEX `fk_course_dept`(`dept_id` ASC) USING BTREE,
-  CONSTRAINT `fk_course_dept` FOREIGN KEY (`dept_id`) REFERENCES `department` (`dept_id`) ON DELETE RESTRICT ON UPDATE CASCADE
-) ENGINE = InnoDB CHARACTER SET = utf8mb4 COLLATE = utf8mb4_0900_ai_ci ROW_FORMAT = Dynamic;
+CREATE TABLE `course` (
+    `course_id` CHAR(6) NOT NULL,
+    `course_name` VARCHAR(60) NOT NULL,
+    `credits` DECIMAL(3,1) NOT NULL,
+    `dept_id` CHAR(4) NOT NULL,
+    `cpno` CHAR(6) DEFAULT NULL,
+    PRIMARY KEY (`course_id`),
+    CONSTRAINT `fk_course_dept` FOREIGN KEY (`dept_id`)
+       REFERENCES `department` (`dept_id`)
+       ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT `fk_course_prerequisite` FOREIGN KEY (`cpno`)
+       REFERENCES `course` (`course_id`)
+       ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 插入系表示例数据：3 条
-INSERT INTO `department` VALUES ('D001', '计算机系', 'A301');
-INSERT INTO `department` VALUES ('D002', '软件工程系', 'A302');
-INSERT INTO `department` VALUES ('D003', '网络工程系', 'A303');
+CREATE TABLE `sc` (
+    `student_id` CHAR(10) NOT NULL,
+    `course_id` CHAR(6) NOT NULL,
+    `grade` DECIMAL(5,2) DEFAULT NULL,
+    PRIMARY KEY (`student_id`,`course_id`),
+    CONSTRAINT `fk_sc_student` FOREIGN KEY (`student_id`)
+       REFERENCES `student` (`student_id`)
+       ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT `fk_sc_course` FOREIGN KEY (`course_id`)
+       REFERENCES `course` (`course_id`)
+       ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- 插入学生表示例数据：4 条
-INSERT INTO `student` VALUES ('2023000001', '张三', '男', 20, 'D001');
-INSERT INTO `student` VALUES ('2023000002', '李四', '女', 21, 'D001');
-INSERT INTO `student` VALUES ('2023000003', '王五', '男', 20, 'D002');
-INSERT INTO `student` VALUES ('2023000004', '赵六', '女', 22, 'D003');
+-- 先插入被引用的系、学生和课程记录
+INSERT INTO `department` (`dept_id`,`dept_name`,`office`) VALUES
+ ('D001','计算机系','A301'),('D002','软件工程系','A302'),('D003','网络工程系','A303');
 
--- 插入课程表示例数据：4 条
-INSERT INTO `course` VALUES ('C00001', '数据库系统', 3.5, 'D001');
-INSERT INTO `course` VALUES ('C00002', '计算机网络', 3.0, 'D001');
-INSERT INTO `course` VALUES ('C00003', '软件工程', 3.0, 'D002');
-INSERT INTO `course` VALUES ('C00004', '网络安全', 2.5, 'D003');
+INSERT INTO `student` (`student_id`,`student_name`,`gender`,`age`,`dept_id`) VALUES
+ ('2023000001','张三','男',20,'D001'),
+ ('2023000002','李四','女',21,'D001'),
+ ('2023000003','王五','男',20,'D002'),
+ ('2023000004','赵六','女',22,'D003');
 
--- 基本检查
-SELECT * FROM `department`;
-SELECT * FROM `student`;
-SELECT * FROM `course`;
+-- 先不填 cpno；课程全部插入后再设置自引用外键值
+INSERT INTO `course` (`course_id`,`course_name`,`credits`,`dept_id`) VALUES
+ ('C00001','数据库系统',3.5,'D001'),
+ ('C00002','计算机网络',3.0,'D001'),
+ ('C00003','软件工程',3.0,'D002'),
+ ('C00004','网络安全',2.5,'D003'),
+ ('C00005','程序设计基础',3.0,'D001'),
+ ('C00006','数据结构',4.0,'D001');
+
+UPDATE `course` SET `cpno`='C00005' WHERE `course_id`='C00006';
+UPDATE `course` SET `cpno`='C00006' WHERE `course_id` IN ('C00001','C00002');
+UPDATE `course` SET `cpno`='C00002' WHERE `course_id`='C00004';
+
+INSERT INTO `sc` (`student_id`,`course_id`,`grade`) VALUES
+ ('2023000001','C00001',85.50),
+ ('2023000001','C00002',92.00),
+ ('2023000002','C00001',88.00),
+ ('2023000002','C00003',90.50),
+ ('2023000003','C00003',86.00),
+ ('2023000004','C00004',91.00);

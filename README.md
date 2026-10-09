@@ -1,243 +1,223 @@
-# MySQL + Navicat 实践：创建学生表、系表与课程表
+# MySQL + Navicat 教务数据库实践：四表设计、选课成绩与先修课程
 
-> 数据库系统基础课程实践：从连接 MySQL、设计关系模式，到利用 Navicat 创建数据表、配置主外键、插入数据、执行连接查询及生成关系模型图。
+> 《数据库系统基础》实践记录 | MySQL 8.0.43 + Navicat Premium + GitHub
+
+本项目从零创建一个简化的学生选课数据库 `school_db`，完整记录 **数据库连接、图形化建表、主键与联合主键、外键与自引用外键、测试数据、连接查询、Navicat 逆向建模**。初始版本包含系、学生、课程三张表；根据课堂要求，第二阶段增加选课表 `sc` 和课程先修关系 `cpno`。
+
+- **可直接复现的完整 SQL**：[`sql/school_db.sql`](sql/school_db.sql)
+- **全部实验查询 SQL**：[`sql/queries.sql`](sql/queries.sql)
+- **Navicat 最新原始导出文件**：[`sql/navicat-exports/school_db_latest.sql`](sql/navicat-exports/school_db_latest.sql)
+
+> **运行提醒**：`sql/school_db.sql` 是完整重建脚本，包含 `DROP TABLE IF EXISTS`，会删除 `school_db` 中同名表和原有数据。不要在存有重要数据的数据库中运行。`sql/queries.sql` 仅用于查询。
 
 ## 一、实验目的与环境
 
-本实验以简化的高校教务数据库为案例，使用 MySQL 存储数据、Navicat Premium 进行图形化管理，完成以下任务：
+本实验旨在熟悉 MySQL 与 Navicat 的基本操作，理解关系模型、实体完整性、参照完整性以及常见 SQL 查询。实验环境：**Windows、MySQL 8.0.43、Navicat Premium、localhost:3306、utf8mb4 / utf8mb4_0900_ai_ci**。以下测试数据为课堂演示数据，截图为实际操作结果。
 
-1. 建立 `school_db` 数据库，理解字符集与排序规则的作用。
-2. 设计 `department`、`student`、`course` 三张关系表，确定字段类型及主键。
-3. 设置外键与唯一索引，验证表之间的参照关系。
-4. 插入测试记录，使用 `SELECT` 和 `INNER JOIN` 查询数据。
-5. 使用 Navicat 逆向建模，将数据库表结构转换为可视化关系图。
+本项目分为两期：
 
-**本次使用的环境**：Windows、MySQL **8.0.43**、Navicat Premium，连接地址 `localhost:3306`；数据库字符集 `utf8mb4`，排序规则 `utf8mb4_0900_ai_ci`。SQL 语句和截图均来自本次实际操作。
+1. **一期：三表基础练习**——创建 `department`、`student`、`course`，完成主外键与基础 `INNER JOIN`。
+2. **二期：选课与先修课扩展**——增加 `sc`、`course.cpno`，设置联合主键及自引用外键，练习 `LEFT JOIN` 自连接。
 
-## 二、数据库设计
+## 二、关系模式与字段设计
 
-### 2.1 需求分析
-
-数据库包含以下三类实体：
-
-- **系（department）**：记录系编号、系名称和办公室地点。
-- **学生（student）**：记录学号、姓名、性别、年龄和所属系编号。
-- **课程（course）**：记录课程编号、课程名称、学分及开课系编号。
-
-在本次简化模型中，一个系可以包含多名学生，也可以开设多门课程；每名学生只归属于一个系，每门课程只归属于一个开课系。因此存在两个 **1:N** 关系。
-
-> **建模边界**：本次仅要求三张表，所以没有建立“学生—课程”的选课关系。如果需要记录某名学生选修了哪些课程，应再增加 `SC` / `student_course` 选课表，建立学生与课程之间的多对多联系。
-
-### 2.2 数据表结构
-
-**系表 `department`**
+### 2.1 系表 department
 
 | 字段 | 类型 | 约束 | 含义 |
 | --- | --- | --- | --- |
-| `dept_id` | `CHAR(4)` | PRIMARY KEY, NOT NULL | 系编号 |
-| `dept_name` | `VARCHAR(50)` | NOT NULL, UNIQUE | 系名称 |
-| `office` | `VARCHAR(100)` | 可为 NULL | 办公地点 |
+| `dept_id` | `CHAR(4)` | 主键、非空 | 系编号 |
+| `dept_name` | `VARCHAR(50)` | 非空、唯一索引 | 系名称 |
+| `office` | `VARCHAR(100)` | 允许 NULL | 办公室 |
 
-**学生表 `student`**
+创建时先在 Navicat 设计字段与主键，再通过「索引」设置 `uq_dept_name` 唯一索引。
 
-| 字段 | 类型 | 约束 | 含义 |
-| --- | --- | --- | --- |
-| `student_id` | `CHAR(10)` | PRIMARY KEY, NOT NULL | 学号 |
-| `student_name` | `VARCHAR(30)` | NOT NULL | 学生姓名 |
-| `gender` | `CHAR(1)` | 可为 NULL | 性别 |
-| `age` | `TINYINT UNSIGNED` | 可为 NULL | 年龄 |
-| `dept_id` | `CHAR(4)` | NOT NULL, FOREIGN KEY | 所属系编号 |
+![Navicat department 唯一索引设置](images/02-department-unique-index.png)
 
-**课程表 `course`**
+### 2.2 学生表 student
 
 | 字段 | 类型 | 约束 | 含义 |
 | --- | --- | --- | --- |
-| `course_id` | `CHAR(6)` | PRIMARY KEY, NOT NULL | 课程编号 |
-| `course_name` | `VARCHAR(60)` | NOT NULL | 课程名称 |
-| `credits` | `DECIMAL(3,1)` | NOT NULL | 学分 |
-| `dept_id` | `CHAR(4)` | NOT NULL, FOREIGN KEY | 开课系编号 |
+| `student_id` | `CHAR(10)` | 主键 | 学号 |
+| `student_name` | `VARCHAR(30)` | 非空 | 姓名 |
+| `gender` | `CHAR(1)` | 允许 NULL | 性别 |
+| `age` | `TINYINT UNSIGNED` | 允许 NULL | 年龄 |
+| `dept_id` | `CHAR(4)` | 外键、非空 | 所属系编号 |
 
-设计时使用 `CHAR` 存储固定长度的编号，`VARCHAR` 存储变长文本；`DECIMAL(3,1)` 适合保存 `3.5`、`4.0` 等精确到一位小数的学分。
+`student.dept_id` 引用 `department.dept_id`；外键配置为 `ON DELETE RESTRICT ON UPDATE CASCADE`。
 
-### 2.3 表关系图
+![学生表主键和外键 SQL 预览](images/03-student-table-design.png)
 
-![Navicat 逆向建模生成的三表关系图](images/09-er-diagram.png)
+### 2.3 课程表 course（含先修课）
 
-图中黄色钥匙标识主键，关系线体现：
+| 字段 | 类型 | 约束 | 含义 |
+| --- | --- | --- | --- |
+| `course_id` | `CHAR(6)` | 主键 | 课程号 |
+| `course_name` | `VARCHAR(60)` | 非空 | 课程名 |
+| `credits` | `DECIMAL(3,1)` | 非空 | 学分 |
+| `dept_id` | `CHAR(4)` | 外键、非空 | 开课系编号 |
+| `cpno` | `CHAR(6)` | 自引用外键、允许 NULL | 直接先修课编号 |
 
-- `student.dept_id` → `department.dept_id`（一个系对应多个学生）；
-- `course.dept_id` → `department.dept_id`（一个系对应多门课程）。
+`course.cpno` 引用同一张表的 `course.course_id`，采用 `ON DELETE SET NULL ON UPDATE CASCADE`。基础课程没有直接先修课时，`cpno` 为 `NULL`。该模型只能存储**一门直接先修课**，如果某课程需要多门先修课，应另建课程先修关系表。
 
-这张图由 Navicat 对已建数据库进行**逆向建模**生成，而非手动画出的示意图。
+![初始课程表设计（添加 cpno 之前）](images/04-course-table-design.png)
 
-## 三、使用 Navicat 创建数据库与表
+### 2.4 选课表 sc（联合主键）
 
-### 3.1 连接 MySQL 并创建数据库
+| 字段 | 类型 | 约束 | 含义 |
+| --- | --- | --- | --- |
+| `student_id` | `CHAR(10)` | 联合主键成员、外键 | 学号 |
+| `course_id` | `CHAR(6)` | 联合主键成员、外键 | 课程号 |
+| `grade` | `DECIMAL(5,2)` | 允许 NULL | 成绩 |
 
-在 Windows 服务中确认 MySQL 服务已运行。打开 Navicat Premium，创建 MySQL 连接，使用 `localhost`、端口 `3306` 和本地数据库账号连接。随后创建数据库 `school_db`，设置字符集为 `utf8mb4`，排序规则为 `utf8mb4_0900_ai_ci`。
+联合主键是 **`PRIMARY KEY (student_id, course_id)`**，意味着同一个学生和同一门课程的组合只能出现一次，学号或课程号分别允许重复。外键 `fk_sc_student` 指向学生表、`fk_sc_course` 指向课程表，表达学生和课程的多对多关联。
 
+![SC 表联合主键与两个外键的 SQL 预览](images/10-sc-design.png)
 
+### 2.5 五条外键关系
 
-同样可以使用 SQL：
+| 外键（引用方） | 目标（被引用方） | 用途 |
+| --- | --- | --- |
+| `student.dept_id` | `department.dept_id` | 学生所属系 |
+| `course.dept_id` | `department.dept_id` | 课程开设系 |
+| `sc.student_id` | `student.student_id` | 选课学生 |
+| `sc.course_id` | `course.course_id` | 所选课程 |
+| `course.cpno` | `course.course_id` | 课程直接先修课（自引用） |
+
+判断外键方向的规则：**`FOREIGN KEY (本表字段) REFERENCES 被引用表(被引用字段)`**。引用方存储别的表定义的编号，被引用方提供编号的合法集合。
+
+## 三、Navicat 逆向建模：四表关系图
+
+利用 Navicat 的「逆向数据库到模型」功能，得到四张表的真实关系图：
+
+![Navicat 四表关系图，包含先修课自引用和 SC 联合主键](images/14-four-table-er.png)
+
+图中黄色钥匙表示主键，`sc` 的两个黄色钥匙表示联合主键；`fk_course_prerequisite` 对应 `course` 的自引用连线。旧版三表关系图保留在 [`images/09-er-diagram.png`](images/09-er-diagram.png)，用于对比数据库的扩展过程。
+
+## 四、操作步骤与实际数据
+
+### 4.1 建库与建表
+
+在 Windows 服务中确认 `MySQL80` 正在运行，然后在 Navicat 中使用 `localhost:3306` 连接 MySQL。右键连接创建 `school_db`，字符集 `utf8mb4`、排序规则 `utf8mb4_0900_ai_ci`。在「新建表」中逐个配置字段、主键与外键，使用「设计表」和「索引」设置约束。
+
+通过 SQL 建库亦可：
 
 ```sql
 CREATE DATABASE IF NOT EXISTS school_db
-DEFAULT CHARACTER SET utf8mb4
-COLLATE utf8mb4_0900_ai_ci;
+DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 USE school_db;
 ```
 
-### 3.2 创建系表并添加唯一索引
+建表与数据的**完整执行脚本**见 [`sql/school_db.sql`](sql/school_db.sql)。建议打开 Navicat「新建查询」执行后在表视图中检查字段、索引与外键关系。
 
-在 Navicat 的“新建表”界面中设置 `dept_id`、`dept_name` 和 `office`，把 `dept_id` 指定为主键；随后为 `dept_name` 添加唯一索引 `uq_dept_name`，防止在该表中重复使用相同的系名称。
+### 4.2 系、学生与课程基础数据
+
+首次练习插入了 **3 个系、4 名学生和 4 门课程**；后续增加两门基础课程，总计 **6 门课程**。
+
+![系表查询结果](images/05-department-query.png)
+
+![学生表查询结果](images/06-student-query.png)
+
+![课程表一期查询结果（尚未补充先修课字段）](images/07-course-query.png)
+
+### 4.3 SC 选课数据
+
+在已插入学生与课程的前提下，执行以下语句（重复执行可能违反联合主键约束）：
 
 ```sql
-CREATE TABLE department (
-    dept_id CHAR(4) PRIMARY KEY,
-    dept_name VARCHAR(50) NOT NULL UNIQUE,
-    office VARCHAR(100)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+INSERT INTO sc (student_id, course_id, grade) VALUES
+('2023000001', 'C00001', 85.50),
+('2023000001', 'C00002', 92.00),
+('2023000002', 'C00001', 88.00),
+('2023000002', 'C00003', 90.50),
+('2023000003', 'C00003', 86.00),
+('2023000004', 'C00004', 91.00);
 ```
 
-以下是通过 Navicat 增加唯一索引的 SQL 预览：
+`SELECT * FROM sc;` 返回 **6 条选课记录**：
 
-![department 唯一索引设置](images/02-department-unique-index.png)
+![SC 选课成绩查询](images/11-sc-data.png)
 
-### 3.3 创建学生表与外键
+### 4.4 直接先修课数据
 
-学生表使用 `student_id` 作为主键，`dept_id` 作为外键，关联 `department.dept_id`。设置的约束如下：
+增加 `C00005`（程序设计基础）、`C00006`（数据结构），再更新现有课程的 `cpno`：
 
 ```sql
-CONSTRAINT fk_student_dept
-FOREIGN KEY (dept_id)
-REFERENCES department(dept_id)
-ON DELETE RESTRICT
-ON UPDATE CASCADE
+UPDATE course SET cpno = 'C00005' WHERE course_id = 'C00006';
+UPDATE course SET cpno = 'C00006' WHERE course_id IN ('C00001', 'C00002');
+UPDATE course SET cpno = 'C00002' WHERE course_id = 'C00004';
 ```
 
-其中 `RESTRICT` 防止删除仍有学生引用的系，`CASCADE` 表示更新系编号时相应更新关联学生记录中的系编号。
+例如：程序设计基础 → 数据结构 → 数据库系统；网络安全的直接先修课是计算机网络。
 
-![学生表保存前的 SQL 预览](images/03-student-table-design.png)
+![course 课程先修编号查询](images/12-course-prerequisites.png)
 
-### 3.4 创建课程表与外键
+## 五、SQL 查询练习
 
-课程表使用 `course_id` 作为主键，`dept_id` 同样引用系表中的 `dept_id`：
-
-```sql
-CONSTRAINT fk_course_dept
-FOREIGN KEY (dept_id)
-REFERENCES department(dept_id)
-ON DELETE RESTRICT
-ON UPDATE CASCADE
-```
-
-`credits` 采用 `DECIMAL(3,1)`，表示总共最多 3 位十进制数字，其中小数部分占 1 位。
-
-![课程表保存前的 SQL 预览](images/04-course-table-design.png)
-
-**完整、可重建数据库结构和示例数据的 SQL** 见 [`sql/school_db.sql`](sql/school_db.sql)；Navicat 原始导出文件保留在 [`sql/navicat-exports/`](sql/navicat-exports/)。
-
-## 四、插入数据并查询
-
-因为学生表与课程表都引用系表，需要先插入系数据，再插入学生和课程数据。为了展示数据库效果，本次使用的是演示用的虚构记录。
-
-### 4.1 系表数据
+### 5.1 INNER JOIN：学生所属系
 
 ```sql
-INSERT INTO department (dept_id, dept_name, office) VALUES
-('D001', '计算机系', 'A301'),
-('D002', '软件工程系', 'A302'),
-('D003', '网络工程系', 'A303');
-
-SELECT * FROM department;
-```
-
-![department 数据查询结果](images/05-department-query.png)
-
-### 4.2 学生表数据
-
-```sql
-INSERT INTO student (student_id, student_name, gender, age, dept_id) VALUES
-('2023000001', '张三', '男', 20, 'D001'),
-('2023000002', '李四', '女', 21, 'D001'),
-('2023000003', '王五', '男', 20, 'D002'),
-('2023000004', '赵六', '女', 22, 'D003');
-
-SELECT * FROM student;
-```
-
-![student 数据查询结果](images/06-student-query.png)
-
-### 4.3 课程表数据
-
-```sql
-INSERT INTO course (course_id, course_name, credits, dept_id) VALUES
-('C00001', '数据库系统', 3.5, 'D001'),
-('C00002', '计算机网络', 3.0, 'D001'),
-('C00003', '软件工程', 3.0, 'D002'),
-('C00004', '网络安全', 2.5, 'D003');
-
-SELECT * FROM course;
-```
-
-![course 数据查询结果](images/07-course-query.png)
-
-### 4.4 INNER JOIN 多表查询
-
-学生表只有所属系编号，系名称存放在系表。可以通过内连接查询学生姓名及所属系：
-
-```sql
-SELECT
-    s.student_id AS 学号,
-    s.student_name AS 姓名,
-    d.dept_name AS 系
+SELECT s.student_id AS 学号, s.student_name AS 姓名, d.dept_name AS 所属系
 FROM student AS s
-INNER JOIN department AS d
-    ON s.dept_id = d.dept_id;
+INNER JOIN department AS d ON s.dept_id = d.dept_id;
 ```
 
-![INNER JOIN 实际运行结果](images/08-inner-join.png)
+![INNER JOIN 查询结果](images/08-inner-join.png)
 
-查询结果为：
+`ON` 描述两个表按什么字段匹配，`WHERE` 通常用于筛选结果；在内连接中等值条件写在两处常可等价，但在外连接中二者可能导致不同结果。
 
-| 学号 | 姓名 | 系 |
-| --- | --- | --- |
-| 2023000001 | 张三 | 计算机系 |
-| 2023000002 | 李四 | 计算机系 |
-| 2023000003 | 王五 | 软件工程系 |
-| 2023000004 | 赵六 | 网络工程系 |
+### 5.2 SC 多表连接：学生、课程和成绩
 
-其中，`ON` 明确两表的匹配条件，`WHERE` 通常用于对查询结果进行筛选。对于本例中的内连接，将等值匹配条件放入 `WHERE` 也可以得到相同结果；但在外连接中，二者的语义与查询结果可能不同。
+```sql
+SELECT s.student_name AS 学生姓名, c.course_name AS 课程名称, sc.grade AS 成绩
+FROM sc
+JOIN student AS s ON sc.student_id = s.student_id
+JOIN course AS c ON sc.course_id = c.course_id;
+```
 
-## 五、约束及结果分析
+该查询可以将选课表中保存的学号、课程编号转换为姓名和课程名。此查询语句已收录在 [`sql/queries.sql`](sql/queries.sql) 中，但本次未单独提供其 Navicat 运行截图。
 
-从导出的表结构可以确认：
+### 5.3 LEFT JOIN 自连接：课程及直接先修课
 
-- `department.dept_id`、`student.student_id`、`course.course_id` 分别是对应表的主键。
-- `department.dept_name` 创建了唯一索引 `uq_dept_name`。
-- 学生与课程的 `dept_id` 都通过外键关联 `department.dept_id`，删除规则为 `RESTRICT`，更新规则为 `CASCADE`。
-- 已成功插入并查询 **3 条系记录、4 条学生记录、4 条课程记录**，以及通过 `INNER JOIN` 获取学生的所属系名称。
+```sql
+SELECT c.course_id AS 课程编号, c.course_name AS 课程名称,
+       p.course_name AS 先修课程
+FROM course AS c
+LEFT JOIN course AS p ON c.cpno = p.course_id
+ORDER BY c.course_id;
+```
 
-外键有助于维护数据的参照完整性；而通过关联查询，可以避免在每条学生记录中重复存储系名称。**本次已验证的是建表、数据插入、数据查询和关系模型生成，没有另外进行删除、级联更新或非法外键插入测试**，因此不把这些行为写成已实测的结果。
+同一张 `course` 表通过 `c` 和 `p` 两个别名扮演当前课程与先修课程两个角色。使用 `LEFT JOIN` 可以保留没有先修课的课程（先修名称为 `NULL`）。
 
+![LEFT JOIN 课程自连接实测结果](images/13-course-self-join.png)
 
+### 5.4 进阶查询：间接先修课
+
+```sql
+SELECT c.course_name AS 当前课程, p.course_name AS 直接先修课,
+       pp.course_name AS 间接先修课
+FROM course AS c
+JOIN course AS p ON c.cpno = p.course_id
+JOIN course AS pp ON p.cpno = pp.course_id;
+```
+
+两次自连接可查询两级先修关系，例如数据库系统 → 数据结构 → 程序设计基础。**该语句是额外的扩展练习，未作为已实测结果描述。** 更深层级可以进一步研究递归 CTE。
 
 ## 六、实验总结
 
-这次实践将关系数据库的基本概念与实际操作连接起来：从设计字段、选择数据类型，到创建主键、唯一索引和外键，再到插入数据与执行多表连接查询。通过 Navicat 的关系模型图，我能直观看到“系—学生”和“系—课程”的一对多结构。
+本次实验从原来的三表模型扩展为四表模型，重点认识了三个关系数据库概念：
 
-其中最值得注意的两点是：第一，主键用于唯一标识表中记录，外键用于维护跨表引用的有效性；第二，`INNER JOIN` 通过共同字段将相关数据组合起来，而不需要在每张表中重复保存所有信息。
+1. **联合主键**：`sc` 中学号与课程号共同标识一条选课记录，单独任一字段都可能重复。
+2. **外键的引用方向**：`sc.student_id` 引用 `student.student_id`，`sc.course_id` 引用 `course.course_id`，由引用方保存被引用方定义的编号。
+3. **自引用外键与自连接**：`course.cpno` 指向 `course.course_id`，查询时使用两个别名表示当前课程与先修课程，并可借助 `LEFT JOIN` 保留没有先修课的课程。
 
-本案例是一个简化的数据库设计练习。后续如果扩展为教务系统，可以增加选课表、成绩字段、更多 `CHECK` 约束和事务操作，进一步理解数据库设计与应用开发。
+Navicat 的逆向模型展示了 5 条外键关系；课堂实际操作中已完成四表结构、测试数据插入、学生所属系的 `INNER JOIN` 和课程先修课的 `LEFT JOIN` 自连接。本文不将未实际执行的删除、级联更新测试写成验证成功。
 
----
-
-## 项目目录
+## 七、文件目录与复现方式
 
 ```text
 sql-exercise/
-├── README.md                       # 当前博客正文
-├── images/                         # Navicat 实际操作截图
+├── README.md
+├── images/
 │   ├── 01-database-created.png
 │   ├── 02-department-unique-index.png
 │   ├── 03-student-table-design.png
@@ -246,12 +226,20 @@ sql-exercise/
 │   ├── 06-student-query.png
 │   ├── 07-course-query.png
 │   ├── 08-inner-join.png
-│   └── 09-er-diagram.png
+│   ├── 09-er-diagram.png
+│   ├── 10-sc-design.png
+│   ├── 11-sc-data.png
+│   ├── 12-course-prerequisites.png
+│   ├── 13-course-self-join.png
+│   └── 14-four-table-er.png
 └── sql/
-    ├── school_db.sql               # 一键建立数据库、数据表及演示数据
-    ├── queries.sql                 # 查询语句
-    └── navicat-exports/            # Navicat 原始 SQL 导出
-        ├── department.sql
+    ├── school_db.sql                 # 按外键依赖顺序重建四张表与数据
+    ├── queries.sql                   # 查询语句
+    └── navicat-exports/
+        ├── department.sql            # 一期的单表原始导出
         ├── student.sql
-        └── course.sql
+        ├── course.sql
+        └── school_db_latest.sql      # 二期四表 Navicat 原始完整导出
 ```
+
+**复现步骤**：在独立测试 MySQL 实例中执行 `sql/school_db.sql`，随后打开 `sql/queries.sql`，选中需要的查询单独执行。导入前请检查脚本的 `DROP TABLE` 操作，不要覆盖重要数据。
